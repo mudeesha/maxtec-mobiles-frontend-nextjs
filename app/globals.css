@@ -1,0 +1,287 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Modern neutral + accent color palette inspired by contemporary e-commerce designs */
+  /* Neutral base: cool grays for professional look */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #f5f5f5;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  /* Modern accent: teal/cyan for primary brand color */
+  --primary: #0d9488;
+  --primary-foreground: #ffffff;
+
+  /* Neutral palette */
+  --secondary: #e5e5e5;
+  --secondary-foreground: #2d2d2d;
+  --muted: #a3a3a3;
+  --muted-foreground: #737373;
+  --accent: #06b6d4;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e0e0e0;
+
+  /* Improved input styling for light mode contrast */
+  --input: #ffffff;
+  --input-border: #d4d4d8;
+  --input-placeholder: #9ca3af;
+
+  --ring: #0d9488;
+  --chart-1: #0d9488;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --radius: 0.5rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --status-success: #059669;
+  --status-success-bg: #d1fae5;
+  --status-danger: #dc2626;
+  --status-danger-bg: #fee2e2;
+}
+
+.dark {
+  /* Enhanced dark mode with improved contrast for accessibility */
+  /* Darker backgrounds for better modal and card visibility */
+  --background: #0a0a0a;
+  --foreground: #f8f8f8;
+  --card: #1a1a1a;
+  --card-foreground: #f8f8f8;
+  --popover: #1f1f1f;
+  --popover-foreground: #f8f8f8;
+  --primary: #14b8a6;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e5e5e5;
+  --muted: #737373;
+  --muted-foreground: #b0b0b0;
+  --accent: #06b6d4;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a3a;
+
+  /* Significantly improved dark mode input contrast - lighter backgrounds and borders */
+  --input: #2a2a2a;
+  --input-border: #4a4a4a;
+  --input-placeholder: #9ca3af;
+
+  --ring: #14b8a6;
+  --chart-1: #14b8a6;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #f87171;
+  --chart-5: #a78bfa;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+  --overlay: rgba(0, 0, 0, 0.7);
+  --status-success: #10b981;
+  --status-success-bg: #064e3b;
+  --status-danger: #f87171;
+  --status-danger-bg: #7f1d1d;
+}
+
+@theme inline {
+  /* Modern sans-serif font stack */
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-overlay: var(--overlay);
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-bg: var(--status-danger-bg);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  /* Enhanced input styling with improved dark mode contrast */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  textarea,
+  select {
+    /* Use CSS variables directly instead of non-existent utility classes */
+    background-color: var(--input);
+    border-color: var(--input-border);
+    border-width: 1px;
+    color: var(--foreground);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--input-placeholder);
+  }
+
+  /* Improved dark mode input focus states for better visibility */
+  .dark input[type="text"]:focus,
+  .dark input[type="email"]:focus,
+  .dark input[type="password"]:focus,
+  .dark input[type="search"]:focus,
+  .dark input[type="number"]:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    @apply border-primary ring-2 ring-primary/50;
+    background-color: var(--input);
+  }
+
+  /* Enhanced modal and card backgrounds for dark mode readability */
+  .dark .bg-card {
+    background-color: var(--card);
+  }
+
+  .dark .bg-popover {
+    background-color: var(--popover);
+  }
+
+  /* Improved text contrast in dark mode for various elements */
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4,
+  .dark h5,
+  .dark h6 {
+    @apply text-foreground;
+  }
+
+  .dark p,
+  .dark span,
+  .dark li,
+  .dark label {
+    @apply text-foreground;
+  }
+
+  /* Enhanced badge contrast in dark mode */
+  .dark .badge {
+    @apply text-foreground;
+  }
+
+  /* Better button contrast in dark mode */
+  .dark button {
+    @apply transition-colors;
+  }
+
+  .dark button:focus-visible {
+    @apply ring-2 ring-primary;
+  }
+
+  /* Improved link contrast in dark mode */
+  .dark a {
+    @apply transition-colors;
+  }
+
+  .dark a:hover {
+    @apply text-primary;
+  }
+
+  /* Enhanced card and modal borders in dark mode for better definition */
+  .dark .border-border {
+    @apply border-border;
+  }
+
+  /* Improved table and list contrast */
+  .dark table,
+  .dark thead,
+  .dark tbody {
+    @apply border-border;
+  }
+
+  .dark tbody tr:hover {
+    @apply bg-secondary/30;
+  }
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-secondary;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground;
+}
+
+/* Enhanced dark mode scrollbar for visibility */
+.dark ::-webkit-scrollbar-track {
+  @apply bg-secondary;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-muted;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground;
+}
