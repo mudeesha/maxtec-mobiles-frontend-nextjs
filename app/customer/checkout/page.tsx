@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,9 +19,8 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<"address" | "payment" | "review" | "success">("address")
   const [cart] = useState(getCart())
 
-  // Form states
   const [formData, setFormData] = useState({
-    email: localStorage.getItem("userEmail") || "",
+    email: "",
     firstName: "",
     lastName: "",
     address: "",
@@ -31,6 +30,15 @@ export default function CheckoutPage() {
     country: "",
     paymentMethod: "credit-card",
   })
+
+  // ✅ Load email from localStorage only in browser
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("userEmail")
+    if (savedEmail) {
+      setFormData((prev) => ({ ...prev, email: savedEmail }))
+    }
+  }, [])
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
