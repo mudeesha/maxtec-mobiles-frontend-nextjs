@@ -16,7 +16,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState({
     firstName: "John",
     lastName: "Doe",
-    email: localStorage.getItem("userEmail") || "john@example.com",
+    email: "",
     phone: "+1 (555) 123-4567",
     country: "United States",
     state: "California",
@@ -34,14 +34,26 @@ export default function ProfilePage() {
     new: "",
     confirm: "",
   })
+  const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
+    setIsMounted(true)
+    
+    // Load data from localStorage after component mounts
     const savedProfile = localStorage.getItem("customerProfile")
+    const savedImage = localStorage.getItem("customerProfileImage")
+    const userEmail = localStorage.getItem("userEmail")
+
     if (savedProfile) {
       setProfile(JSON.parse(savedProfile))
+    } else if (userEmail) {
+      // If no saved profile but we have user email, update the email field
+      setProfile(prev => ({
+        ...prev,
+        email: userEmail
+      }))
     }
 
-    const savedImage = localStorage.getItem("customerProfileImage")
     if (savedImage) {
       setProfileImage(savedImage)
     }
@@ -81,6 +93,19 @@ export default function ProfilePage() {
     const savedProfile = localStorage.getItem("customerProfile")
     if (savedProfile) {
       setProfile(JSON.parse(savedProfile))
+    } else {
+      // Reset to default values if no saved profile
+      setProfile({
+        firstName: "John",
+        lastName: "Doe",
+        email: localStorage.getItem("userEmail") || "",
+        phone: "+1 (555) 123-4567",
+        country: "United States",
+        state: "California",
+        city: "San Francisco",
+        address: "123 Main St",
+        zip: "94105",
+      })
     }
     setIsEditingProfile(false)
   }
@@ -104,6 +129,28 @@ export default function ProfilePage() {
     setToast({ message: "Password changed successfully!", type: "success" })
     setPasswordForm({ current: "", new: "", confirm: "" })
     setIsChangingPassword(false)
+  }
+
+  // Show loading state during SSR
+  if (!isMounted) {
+    return (
+      <DashboardLayout requiredRoles={["customer"]}>
+        <div className="space-y-6">
+          <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+          <div className="h-8 bg-muted rounded w-48 animate-pulse"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="h-64 bg-muted rounded animate-pulse"></div>
+            </div>
+            <div className="space-y-4">
+              <div className="h-48 bg-muted rounded animate-pulse"></div>
+              <div className="h-32 bg-muted rounded animate-pulse"></div>
+              <div className="h-40 bg-muted rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

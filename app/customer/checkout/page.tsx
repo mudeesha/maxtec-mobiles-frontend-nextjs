@@ -17,8 +17,10 @@ import { getCart, clearCart } from "@/lib/cart-store"
 export default function CheckoutPage() {
   const router = useRouter()
   const [step, setStep] = useState<"address" | "payment" | "review" | "success">("address")
-  const [cart] = useState(getCart())
+  const [cart, setCart] = useState({ items: [], total: 0 })
+  const [isClient, setIsClient] = useState(false)
 
+  // Form states
   const [formData, setFormData] = useState({
     email: "",
     firstName: "",
@@ -31,14 +33,15 @@ export default function CheckoutPage() {
     paymentMethod: "credit-card",
   })
 
-  // ✅ Load email from localStorage only in browser
+  // Initialize client-side data
   useEffect(() => {
-    const savedEmail = localStorage.getItem("userEmail")
-    if (savedEmail) {
-      setFormData((prev) => ({ ...prev, email: savedEmail }))
-    }
+    setIsClient(true)
+    setCart(getCart())
+    setFormData(prev => ({
+      ...prev,
+      email: localStorage.getItem("userEmail") || ""
+    }))
   }, [])
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -66,6 +69,20 @@ export default function CheckoutPage() {
   }
 
   const total = cart.total + cart.total * 0.1
+
+  // Show loading state during SSR
+  if (!isClient) {
+    return (
+      <DashboardLayout requiredRoles={["customer"]}>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Loading...</h1>
+            <p>Preparing your checkout</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   if (step === "success") {
     return (
@@ -126,6 +143,17 @@ export default function CheckoutPage() {
                   <CardTitle>Shipping Address</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="your@email.com"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="firstName">First Name</Label>
