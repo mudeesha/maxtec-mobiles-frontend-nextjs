@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   const totalUsers = 1240
 
   return (
-    <DashboardLayout requiredRoles={["admin"]}>
+    <DashboardLayout requiredRoles={["Admin"]}>
       <div className="space-y-6">
         <Breadcrumb items={[{ label: "Dashboard" }]} />
 

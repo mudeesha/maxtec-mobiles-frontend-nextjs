@@ -24,7 +24,7 @@ export function Sidebar() {
 
   const getNavItems = (): NavItem[] => {
     switch (userRole) {
-      case "admin":
+      case "Admin":
         return [
           { label: "Dashboard", href: "/admin/dashboard", icon: LayoutGrid },
           { label: "Users", href: "/admin/dashboard/users", icon: Users },
@@ -37,7 +37,7 @@ export function Sidebar() {
           { label: "Orders", href: "/admin/dashboard/orders", icon: ShoppingCart },
           { label: "Payments", href: "/admin/dashboard/payments", icon: DollarSign },
         ]
-      case "staff":
+      case "Staff":
         return [
           { label: "Dashboard", href: "/staff/dashboard", icon: LayoutGrid },
           { label: "Attribute Types", href: "/staff/dashboard/attribute-types", icon: Settings },
@@ -47,7 +47,7 @@ export function Sidebar() {
           { label: "Products", href: "/staff/dashboard/products", icon: Package },
           { label: "Product Images", href: "/staff/dashboard/product-images", icon: Package },
         ]
-      case "customer":
+      case "Customer":
         return [
           { label: "Dashboard", href: "/customer/dashboard", icon: LayoutGrid },
           { label: "Profile", href: "/customer/profile", icon: User },

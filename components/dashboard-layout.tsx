@@ -16,13 +16,36 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
 
   useEffect(() => {
     const userRole = localStorage.getItem("userRole")
-    if (!userRole) {
+    const token = localStorage.getItem("token")
+    
+    console.log("🔐 Auth Check Details:")
+    console.log("User Role:", userRole)
+    console.log("Required Roles:", requiredRoles)
+    
+    if (!userRole || !token) {
+      console.log("No user role or token found, redirecting to login.")
       router.push("/auth/login")
-    } else if (requiredRoles && !requiredRoles.includes(userRole)) {
-      router.push("/auth/login")
-    } else {
-      setIsAuthorized(true)
+      return
     }
+    
+    if (requiredRoles && requiredRoles.length > 0) {
+      // Case-insensitive role comparison
+      const userRoleLower = userRole.toLowerCase()
+      const requiredRolesLower = requiredRoles.map(role => role.toLowerCase())
+      
+      console.log("Case-insensitive check:")
+      console.log("User Role (lower):", userRoleLower)
+      console.log("Required Roles (lower):", requiredRolesLower)
+      
+      if (!requiredRolesLower.includes(userRoleLower)) {
+        console.log(`❌ Role not authorized. User has: ${userRole}, Required:`, requiredRoles)
+        router.push("/auth/login")
+        return
+      }
+    }
+    
+    console.log("✅ User authorized!")
+    setIsAuthorized(true)
   }, [router, requiredRoles])
 
   if (!isAuthorized) {

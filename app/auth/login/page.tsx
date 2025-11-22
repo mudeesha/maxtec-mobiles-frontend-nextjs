@@ -1,19 +1,25 @@
 "use client"
 
-import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { AlertCircle, ArrowRight, Smartphone, Zap, Shield } from "lucide-react"
+import { AlertCircle, Smartphone, ArrowRight } from "lucide-react"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const router = useRouter()
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  })
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,20 +27,36 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      if (email && password) {
-        if (email.includes("admin")) {
-          localStorage.setItem("userRole", "admin")
-          router.push("/admin/dashboard")
-        } else if (email.includes("staff")) {
-          localStorage.setItem("userRole", "staff")
-          router.push("/staff/dashboard")
-        } else {
-          localStorage.setItem("userRole", "customer")
-          router.push("/customer/dashboard")
-        }
-        localStorage.setItem("userEmail", email)
+      const response = await fetch("https://localhost:44306/api/Auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      })
+
+      const data = await response.json() // This will now work!
+
+      if (!response.ok) {
+        setError(data.message || "Invalid email or password") // data.message will contain "Invalid credentials"
+        setLoading(false)
+        return
+      }
+
+      // Save token + user info
+      localStorage.setItem("token", data.token)
+      localStorage.setItem("userRole", data.role)
+      localStorage.setItem("userEmail", data.email)
+      localStorage.setItem("userName", data.fullName)
+
+      // Redirect by role
+      if (data.role === "Admin") {
+        router.push("/admin/dashboard")
       } else {
-        setError("Please enter both email and password")
+        router.push("/customer/dashboard")
       }
     } catch (err) {
       setError("Login failed. Please try again.")
@@ -45,11 +67,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/20 rounded-full blur-3xl"></div>
-      </div>
-
       {/* Header */}
       <div className="relative z-10 pt-6 px-6 flex justify-between items-center border-b border-border/20">
         <Link href="/" className="flex items-center gap-3">
@@ -58,11 +75,8 @@ export default function LoginPage() {
           </div>
           <span className="text-xl font-bold text-foreground hidden sm:inline">Maxtec Mobiles</span>
         </Link>
-        <Link
-          href="/auth/signup"
-          className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Create account
+        <Link href="/auth/signup" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+          Sign up
         </Link>
       </div>
 
@@ -72,14 +86,14 @@ export default function LoginPage() {
           <div className="space-y-8">
             {/* Heading */}
             <div className="space-y-2 text-center">
-              <h1 className="text-4xl sm:text-5xl font-bold text-foreground tracking-tight">Welcome</h1>
-              <p className="text-muted-foreground text-lg">Sign in to your Maxtec Mobiles account</p>
+              <h1 className="text-4xl sm:text-5xl font-bold text-foreground tracking-tight">Welcome Back</h1>
+              <p className="text-muted-foreground text-lg">Sign in to continue shopping</p>
             </div>
 
-            {/* Form Card */}
+            {/* Login Card */}
             <div className="space-y-6 bg-card border border-border/30 rounded-3xl p-8 shadow-xl backdrop-blur-sm">
               {error && (
-                <div className="flex gap-3 p-4 bg-destructive/10 text-destructive rounded-2xl text-sm border border-destructive/20 animate-in fade-in">
+                <div className="flex gap-3 p-4 bg-destructive/10 text-destructive rounded-xl text-sm border border-destructive/20">
                   <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                   <span>{error}</span>
                 </div>
@@ -89,75 +103,46 @@ export default function LoginPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground block">Email</label>
                   <Input
+                    name="email"
                     type="email"
                     placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={formData.email}
+                    onChange={handleChange}
                     required
-                    className="h-12 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                    className="h-12 bg-input border rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground block">Password</label>
                   <Input
+                    name="password"
                     type="password"
                     placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={formData.password}
+                    onChange={handleChange}
                     required
-                    className="h-12 bg-input border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                    className="h-12 bg-input border rounded-xl"
                   />
                 </div>
 
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-12 bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all group"
+                  className="w-full h-12 bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold rounded-xl"
                 >
                   {loading ? "Signing in..." : "Sign In"}
-                  {!loading && <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
+                  {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
                 </Button>
               </form>
-            </div>
 
-            {/* Demo accounts */}
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">
-                Demo Accounts
+              <p className="text-center text-sm text-muted-foreground">
+                Don’t have an account?{" "}
+                <Link href="/auth/signup" className="text-primary font-semibold hover:underline">
+                  Create one
+                </Link>
               </p>
-              <div className="grid gap-2 text-xs">
-                {[
-                  { role: "Admin", email: "admin@example.com", icon: Zap },
-                  { role: "Staff", email: "staff@example.com", icon: Shield },
-                  { role: "Customer", email: "customer@example.com", icon: Smartphone },
-                ].map(({ role, email: demoEmail, icon: Icon }) => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      setEmail(demoEmail)
-                      setPassword("password")
-                    }}
-                    className="flex items-center gap-3 p-3 bg-gradient-to-r from-primary/10 to-accent/10 border border-border/30 rounded-lg hover:border-primary/50 transition-all group"
-                  >
-                    <Icon className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                    <div className="flex-1 text-left">
-                      <p className="font-semibold text-foreground">{role}</p>
-                      <p className="text-muted-foreground text-xs">{demoEmail}</p>
-                    </div>
-                    <span className="text-muted-foreground group-hover:text-primary transition-colors">Fill demo</span>
-                  </button>
-                ))}
-              </div>
             </div>
-
-            {/* Footer */}
-            <p className="text-center text-sm text-muted-foreground">
-              New to Maxtec Mobiles?{" "}
-              <Link href="/auth/signup" className="text-primary font-semibold hover:underline">
-                Create account
-              </Link>
-            </p>
           </div>
         </div>
       </div>
