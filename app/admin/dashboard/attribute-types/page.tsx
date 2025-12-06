@@ -9,13 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Trash2, Edit2 } from "lucide-react"
-import {
-  getAttributeTypes,
-  addAttributeType,
-  updateAttributeType,
-  deleteAttributeType,
-  type AttributeType,
-} from "@/lib/admin-store"
+
+export interface AttributeType {
+  id: number
+  name: string
+}
 
 export default function AttributeTypesPage() {
   const [items, setItems] = useState<AttributeType[]>([])
@@ -23,9 +21,43 @@ export default function AttributeTypesPage() {
   const [editingItem, setEditingItem] = useState<AttributeType | null>(null)
   const [formData, setFormData] = useState({ name: "" })
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchAttributeTypes = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      const response = await fetch("https://localhost:44306/api/AttributeTypes", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch attribute types: ${response.status}`)
+      }
+
+      const data: AttributeType[] = await response.json()
+      setItems(data)
+    } catch (err) {
+      console.error("Error fetching attribute types:", err)
+      setError(err instanceof Error ? err.message : "Failed to load attribute types")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    setItems(getAttributeTypes())
+    fetchAttributeTypes()
   }, [])
 
   const handleAdd = () => {
@@ -40,22 +72,89 @@ export default function AttributeTypesPage() {
     setIsModalOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) return
 
-    if (editingItem) {
-      updateAttributeType(editingItem.id, formData.name)
-    } else {
-      addAttributeType(formData.name)
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      if (editingItem) {
+        // Update existing attribute type
+        const response = await fetch(`https://localhost:44306/api/AttributeTypes/${editingItem.id}`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            id: editingItem.id,
+            name: formData.name
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to update attribute type")
+        }
+      } else {
+        // Create new attribute type
+        const response = await fetch("https://localhost:44306/api/AttributeTypes", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            name: formData.name
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to create attribute type")
+        }
+      }
+
+      await fetchAttributeTypes()
+      setIsModalOpen(false)
+    } catch (err) {
+      console.error("Error saving attribute type:", err)
+      setError(err instanceof Error ? err.message : "Failed to save attribute type")
     }
-    setItems(getAttributeTypes())
-    setIsModalOpen(false)
   }
 
-  const handleDelete = (id: number) => {
-    deleteAttributeType(id)
-    setItems(getAttributeTypes())
-    setDeleteConfirm(null)
+  const handleDelete = async (id: number) => {
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      const response = await fetch(`https://localhost:44306/api/AttributeTypes/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to delete attribute type")
+      }
+
+      await fetchAttributeTypes()
+      setDeleteConfirm(null)
+    } catch (err) {
+      console.error("Error deleting attribute type:", err)
+      setError(err instanceof Error ? err.message : "Failed to delete attribute type")
+    }
+  }
+
+  // Retry function for error state
+  const handleRetry = () => {
+    setError(null)
+    fetchAttributeTypes()
   }
 
   return (
@@ -65,34 +164,56 @@ export default function AttributeTypesPage() {
 
         <h1 className="text-3xl font-bold">Attribute Types</h1>
 
-        <DataTable
-          columns={[
-            { header: "ID", accessor: "id" },
-            { header: "Name", accessor: "name" },
-            {
-              header: "Actions",
-              accessor: "id",
-              render: (id, row) => (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(row as AttributeType)}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive bg-transparent"
-                    onClick={() => setDeleteConfirm(id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ),
-            },
-          ]}
-          data={items}
-          title="Attribute Types"
-          onAddClick={handleAdd}
-        />
+        {/* Error Message */}
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <p className="text-destructive text-sm">{error}</p>
+              <Button variant="outline" size="sm" onClick={handleRetry}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        )}
+
+        {/* Data Table */}
+        {!loading && !error && (
+          <DataTable
+            columns={[
+              { header: "ID", accessor: "id" },
+              { header: "Name", accessor: "name" },
+              {
+                header: "Actions",
+                accessor: "id",
+                render: (id, row) => (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(row as AttributeType)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive bg-transparent"
+                      onClick={() => setDeleteConfirm(id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+            data={items}
+            title="Attribute Types"
+            onAddClick={handleAdd}
+          />
+        )}
 
         {/* Delete Confirmation */}
         {deleteConfirm !== null && (
@@ -125,7 +246,9 @@ export default function AttributeTypesPage() {
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSave}>{editingItem ? "Update" : "Create"}</Button>
+              <Button onClick={handleSave} disabled={!formData.name.trim()}>
+                {editingItem ? "Update" : "Create"}
+              </Button>
             </>
           }
         >

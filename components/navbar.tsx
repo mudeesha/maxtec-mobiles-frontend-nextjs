@@ -21,15 +21,14 @@ export function Navbar() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    // Check theme preference
     const theme = localStorage.getItem("theme") || "light"
     setIsDark(theme === "dark")
     document.documentElement.classList.toggle("dark", theme === "dark")
 
-    // Get user info
     setUserRole(localStorage.getItem("userRole"))
     setUserEmail(localStorage.getItem("userEmail"))
 
@@ -52,11 +51,45 @@ export function Navbar() {
     document.documentElement.classList.toggle("dark", !isDark)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("userRole")
-    localStorage.removeItem("userEmail")
-    localStorage.removeItem("theme")
-    router.push("/auth/login")
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    
+    try {
+      const token = localStorage.getItem("token")
+      
+      // Call backend logout endpoint
+      if (token) {
+        const response = await fetch("https://localhost:44306/api/Auth/logout", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        })
+
+        if (response.ok) {
+          console.log("✅ Backend logout successful")
+        } else {
+          console.warn("⚠️ Backend logout failed, but continuing with frontend cleanup")
+        }
+      }
+    } catch (error) {
+      console.error("🔴 Logout API error:", error)
+      // Continue with frontend logout even if backend call fails
+    } finally {
+      // Clear all authentication data from storage
+      localStorage.removeItem("token")
+      localStorage.removeItem("userRole")
+      localStorage.removeItem("userEmail")
+      localStorage.removeItem("userName")
+      
+      // Clear cart and other user-specific data
+      localStorage.removeItem("cart")
+      
+      // Redirect to login page
+      router.push("/auth/login")
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -166,10 +199,15 @@ export function Navbar() {
                   <DropdownMenuSeparator className="mb-1" />
                   <DropdownMenuItem
                     onClick={handleLogout}
-                    className="flex items-center gap-3 cursor-pointer text-destructive py-2 hover:bg-destructive/10 focus:bg-destructive/10"
+                    disabled={isLoggingOut}
+                    className="flex items-center gap-3 cursor-pointer text-destructive py-2 hover:bg-destructive/10 focus:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
+                    {isLoggingOut ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <LogOut className="h-4 w-4" />
+                    )}
+                    <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

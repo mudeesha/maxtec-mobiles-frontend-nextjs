@@ -33,6 +33,9 @@ export function DataTable<T extends { id?: string | number }>({
   loading = false,
   pagination,
 }: DataTableProps<T>) {
+  // Fix: Ensure data is always an array
+  const tableData = Array.isArray(data) ? data : []
+  
   return (
     <Card>
       {title && (
@@ -64,14 +67,14 @@ export function DataTable<T extends { id?: string | number }>({
                     Loading...
                   </td>
                 </tr>
-              ) : data.length === 0 ? (
+              ) : tableData.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="text-center py-8 text-muted-foreground">
                     No data found
                   </td>
                 </tr>
               ) : (
-                data.map((row, rowIndex) => (
+                tableData.map((row, rowIndex) => (
                   <tr key={row.id || rowIndex} className="border-b border-border hover:bg-secondary/50">
                     {columns.map((column, colIndex) => (
                       <td key={colIndex} className={`py-3 px-4 ${column.className || ""}`}>
@@ -95,28 +98,34 @@ export function DataTable<T extends { id?: string | number }>({
           </table>
         </div>
 
+        {/* Pagination Controls - Always show if pagination prop exists */}
         {pagination && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-            <span className="text-sm text-muted-foreground">
-              Page {pagination.currentPage} of {pagination.totalPages}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
-                disabled={pagination.currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
-                disabled={pagination.currentPage === pagination.totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="text-sm text-muted-foreground">
+              <span>Showing {tableData.length} items</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Page {pagination.currentPage} of {pagination.totalPages}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+                  disabled={pagination.currentPage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage >= pagination.totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
