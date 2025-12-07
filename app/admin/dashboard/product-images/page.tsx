@@ -29,6 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { supabase } from "@/lib/supabase"
 
 // Define interfaces based on your API response
 export interface ProductAttribute {
@@ -62,13 +63,16 @@ export interface Product {
   price: number
 }
 
-const API_BASE_URL = "https://localhost:44306/api"
+// Use environment variables for configurable values
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://localhost:44306/api"
+const SUPABASE_BUCKET_NAME = process.env.NEXT_PUBLIC_SUPABASE_BUCKET_NAME || "images"
 
 export default function ProductImagesPage() {
   const [items, setItems] = useState<ProductImage[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ProductImage | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [formData, setFormData] = useState<{
     imageUrl: string
     productAssignments: Array<{productId: number; isDefault: boolean}>
@@ -82,6 +86,7 @@ export default function ProductImagesPage() {
   const [modalError, setModalError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -89,6 +94,52 @@ export default function ProductImagesPage() {
     totalCount: 0,
     totalPages: 0,
   })
+
+  // Function to upload image to Supabase
+  const uploadToSupabase = async (file: File): Promise<string> => {
+    try {
+      // File validation
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error("File size must be less than 10MB")
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error("Only JPEG, PNG, GIF, and WebP files are allowed")
+      }
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`
+      
+      console.log('Uploading to Supabase bucket:', SUPABASE_BUCKET_NAME, 'file:', fileName)
+      
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET_NAME)
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Supabase upload error:', error)
+        throw new Error(`Failed to upload image: ${error.message}`)
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(SUPABASE_BUCKET_NAME)
+        .getPublicUrl(data.path)
+
+      console.log('Upload successful. Public URL:', publicUrl)
+      return publicUrl
+
+    } catch (error) {
+      console.error('Error uploading to Supabase:', error)
+      throw error
+    }
+  }
 
   // Fetch product images from API
   const fetchProductImages = async (pageNumber = 1, pageSize = 10) => {
@@ -148,7 +199,6 @@ export default function ProductImagesPage() {
       const token = localStorage.getItem("token")
       if (!token) return []
 
-      // Use the new assignments endpoint
       const response = await fetch(
         `${API_BASE_URL}/ProductImage/${imageId}/assignments`,
         {
@@ -214,6 +264,14 @@ export default function ProductImagesPage() {
     }
   }
 
+  const openImagePreview = (imageUrl: string) => {
+    setPreviewImage(imageUrl)
+  }
+
+  const closeImagePreview = () => {
+    setPreviewImage(null)
+  }
+
   // Format product display text
   const getProductDisplayText = (product: Product): string => {
     if (!product) return ""
@@ -229,7 +287,7 @@ export default function ProductImagesPage() {
     return parts.join(" ")
   }
 
-  // Get product display with star icons (NEW IMPROVED VERSION)
+  // Get product display with star icons
   const getProductDisplayNames = (image: ProductImage) => {
     if (!image.assignments || image.assignments.length === 0) {
       return <span className="text-sm text-muted-foreground">No products</span>
@@ -264,6 +322,7 @@ export default function ProductImagesPage() {
       imageUrl: "",
       productAssignments: [],
     })
+    setImageFile(null)
     setModalError(null)
     setIsModalOpen(true)
   }
@@ -282,6 +341,7 @@ export default function ProductImagesPage() {
           isDefault: a.isDefault
         }))
       })
+      setImageFile(null)
       setModalError(null)
       setIsModalOpen(true)
     } catch (err) {
@@ -290,6 +350,7 @@ export default function ProductImagesPage() {
         imageUrl: item.imageUrl,
         productAssignments: []
       })
+      setImageFile(null)
       setModalError(null)
       setIsModalOpen(true)
     }
@@ -301,6 +362,8 @@ export default function ProductImagesPage() {
 
     try {
       setModalError(null)
+      
+      // Validation
       if (file.size > 5 * 1024 * 1024) {
         throw new Error("File size must be less than 5MB")
       }
@@ -310,11 +373,16 @@ export default function ProductImagesPage() {
         throw new Error("Invalid file type. Please upload JPEG, PNG, GIF, or WebP")
       }
 
+      // Store the file for later upload
+      setImageFile(file)
+      
+      // Create preview URL
       const objectUrl = URL.createObjectURL(file)
       setFormData(prev => ({
         ...prev,
         imageUrl: objectUrl
       }))
+      
     } catch (err) {
       setModalError(err instanceof Error ? err.message : "Failed to load image")
     }
@@ -366,8 +434,10 @@ export default function ProductImagesPage() {
   const handleSave = async () => {
     setModalError(null)
     
-    if (!formData.imageUrl.trim()) {
-      setModalError("Image URL is required")
+    // For editing existing image, we might use the existing URL
+    // For new image, we need a file
+    if (!editingItem && !imageFile) {
+      setModalError("Please upload an image")
       return
     }
 
@@ -381,20 +451,31 @@ export default function ProductImagesPage() {
       const token = localStorage.getItem("token")
       if (!token) throw new Error("No authentication token found")
 
-      // Payload matches the new backend DTO structure
+      let imageUrl = formData.imageUrl // Default to existing URL for edits
+
+      // If we have a new file, upload it to Supabase
+      if (imageFile) {
+        console.log('Uploading image to Supabase...')
+        imageUrl = await uploadToSupabase(imageFile)
+        console.log('Got Supabase URL:', imageUrl)
+      }
+
+      // Send data to your backend with the image URL
       const productImageData = {
-        imageUrl: formData.imageUrl,
+        imageUrl: imageUrl,
         productAssignments: formData.productAssignments.map(a => ({
           productId: a.productId,
           isDefault: a.isDefault
         }))
-      };
+      }
 
       const url = editingItem 
         ? `${API_BASE_URL}/ProductImage/${editingItem.id}`
         : `${API_BASE_URL}/ProductImage`
       
       const method = editingItem ? "PUT" : "POST"
+
+      console.log('Sending to backend:', { url, method, data: productImageData })
 
       const response = await fetch(url, {
         method,
@@ -407,6 +488,7 @@ export default function ProductImagesPage() {
 
       if (!response.ok) {
         const errorText = await response.text()
+        console.error('Backend error:', errorText)
         throw new Error(errorText || `Failed to ${editingItem ? 'update' : 'create'} product image`)
       }
 
@@ -414,10 +496,13 @@ export default function ProductImagesPage() {
       await fetchProductImages(pagination.currentPage, pagination.pageSize)
       setIsModalOpen(false)
       setError(null)
+      setImageFile(null)
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save product image"
       setModalError(errorMessage)
       toast.error(errorMessage)
+      console.error('Save error:', err)
     } finally {
       setIsSubmitting(false)
     }
@@ -461,16 +546,6 @@ export default function ProductImagesPage() {
     fetchProductImages(pagination.currentPage, pagination.pageSize)
   }
 
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
-
-  const openImagePreview = (imageUrl: string) => {
-    setPreviewImage(imageUrl)
-  }
-
-  const closeImagePreview = () => {
-    setPreviewImage(null)
-  }
-
   return (
     <DashboardLayout requiredRoles={["admin"]}>
       <div className="space-y-6">
@@ -482,7 +557,7 @@ export default function ProductImagesPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
-        
+
         {error && (
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
             <div className="flex justify-between items-center">
@@ -608,7 +683,7 @@ export default function ProductImagesPage() {
               </Button>
               <Button 
                 onClick={handleSave}
-                disabled={isSubmitting || !formData.imageUrl || formData.productAssignments.length === 0}
+                disabled={isSubmitting || (!imageFile && !editingItem) || formData.productAssignments.length === 0}
               >
                 {isSubmitting ? (
                   <>
@@ -635,11 +710,16 @@ export default function ProductImagesPage() {
               <div className="flex gap-4 items-start">
                 <div className="flex-shrink-0">
                   {formData.imageUrl ? (
-                    <img
-                      src={formData.imageUrl || "/placeholder.svg"}
-                      alt="Preview"
-                      className="w-24 h-24 rounded-lg object-cover border border-border"
-                    />
+                    <button
+                      onClick={() => openImagePreview(formData.imageUrl)}
+                      className="transition-transform hover:scale-105"
+                    >
+                      <img
+                        src={formData.imageUrl || "/placeholder.svg"}
+                        alt="Preview"
+                        className="w-24 h-24 rounded-lg object-cover border border-border"
+                      />
+                    </button>
                   ) : (
                     <div className="w-24 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-secondary/50">
                       <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -659,6 +739,11 @@ export default function ProductImagesPage() {
                     disabled={isSubmitting}
                   />
                   <p className="text-xs text-muted-foreground mt-1">PNG, JPG, GIF, WebP (Max 5MB)</p>
+                  {editingItem && !imageFile && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Current image will be kept. Upload new to replace.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

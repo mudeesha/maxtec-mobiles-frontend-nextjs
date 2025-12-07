@@ -461,14 +461,6 @@ export default function ProductsPage() {
             <p className="text-2xl font-bold">{pagination.totalCount}</p>
           </div>
           <div className="bg-card border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Current Page</p>
-            <p className="text-2xl font-bold">{pagination.currentPage} of {pagination.totalPages}</p>
-          </div>
-          <div className="bg-card border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground">Page Size</p>
-            <p className="text-2xl font-bold">{pagination.pageSize}</p>
-          </div>
-          <div className="bg-card border rounded-lg p-4">
             <p className="text-sm text-muted-foreground">Showing</p>
             <p className="text-2xl font-bold">{items.length} items</p>
           </div>
@@ -621,18 +613,18 @@ export default function ProductsPage() {
               </select>
             </div>
             <div>
-              <Label htmlFor="price">Price ($) *</Label>
+              <Label htmlFor="price">Price (Rs) *</Label>
               <Input
                 id="price"
                 type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.price}
+                min="1"
+                value={formData.price || ""}
                 onChange={(e) => {
-                  setFormData({ ...formData, price: Number.parseFloat(e.target.value) || 0 })
+                  const value = Number.parseFloat(e.target.value);
+                  setFormData({ ...formData, price: isNaN(value) ? 0 : value })
                   setModalError(null)
                 }}
-                placeholder="0.01"
+                placeholder="1.00"
               />
             </div>
             <div>
@@ -641,9 +633,10 @@ export default function ProductsPage() {
                 id="stock"
                 type="number"
                 min="0"
-                value={formData.stockQuantity}
+                value={formData.stockQuantity || ""}
                 onChange={(e) => {
-                  setFormData({ ...formData, stockQuantity: Number.parseInt(e.target.value) || 0 })
+                  const value = Number.parseInt(e.target.value);
+                  setFormData({ ...formData, stockQuantity: isNaN(value) ? 0 : value })
                   setModalError(null)
                 }}
                 placeholder="0"
