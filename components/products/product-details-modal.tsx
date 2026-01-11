@@ -1,40 +1,155 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, ShoppingCart, Heart, Plus, Minus, Star, Truck, Shield, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type Product, getProductName, getBrandName, getAttributeValuesText, getDefaultImage } from "@/lib/mock-data"
-import { addToCart } from "@/lib/cart-store"
 import { Input } from "@/components/ui/input"
+import { addToCart } from "@/lib/cart-store"
+
+interface AttributeValueDto {
+  id: number
+  type: string
+  value: string
+}
+
+interface ProductVariantDto {
+  id: number
+  sku: string
+  attributes: AttributeValueDto[]
+  stockQuantity: number
+  price: number
+  defaultImageUrl: string | null
+  images: string[]
+}
+
+interface ModelListingDto {
+  id: number
+  name: string
+  brandId: number
+  brandName: string
+  defaultImageUrl: string | null
+  minPrice: number
+  maxPrice: number
+  totalStock: number
+  hasStock: boolean
+  attributeOptions: Record<string, string[]>
+  products: ProductVariantDto[]
+}
 
 interface ProductDetailsModalProps {
   isOpen: boolean
   onClose: () => void
-  product: Product
+  product: ProductVariantDto
+  model: ModelListingDto
   onCartUpdate?: () => void
 }
 
-export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: ProductDetailsModalProps) {
+export function ProductDetailsModal({ 
+  isOpen, 
+  onClose, 
+  product: initialProduct, 
+  model, 
+  onCartUpdate 
+}: ProductDetailsModalProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [quantity, setQuantity] = useState(1)
   const [addedToCart, setAddedToCart] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
-  const [selectedColor, setSelectedColor] = useState("Red")
-  const [selectedStorage, setSelectedStorage] = useState("128GB")
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({})
+  const [currentProduct, setCurrentProduct] = useState<ProductVariantDto>(initialProduct)
+
+  // Initialize selected attributes from the initial product
+  useEffect(() => {
+    if (initialProduct && initialProduct.attributes.length > 0) {
+      const attrs: Record<string, string> = {}
+      initialProduct.attributes.forEach(attr => {
+        attrs[attr.type] = attr.value
+      })
+      setSelectedAttributes(attrs)
+      setCurrentProduct(initialProduct)
+      setSelectedImageIndex(0) // Reset to first image when product changes
+    }
+  }, [initialProduct])
+
+  // Find matching product based on selected attributes
+  const findMatchingProduct = (attributes: Record<string, string>): ProductVariantDto | null => {
+    for (const p of model.products) {
+      // Check if product has all selected attributes
+      const matches = p.attributes.every(attr => 
+        attributes[attr.type] === attr.value
+      )
+      
+      // Also check if the product doesn't have extra attributes
+      if (matches && p.attributes.length === Object.keys(attributes).length) {
+        return p
+      }
+    }
+    
+    return null
+  }
+
+  // Update current product when selected attributes change
+  useEffect(() => {
+    if (Object.keys(selectedAttributes).length > 0) {
+      const matchingProduct = findMatchingProduct(selectedAttributes)
+      if (matchingProduct) {
+        setCurrentProduct(matchingProduct)
+      }
+    }
+  }, [selectedAttributes, model.products])
 
   if (!isOpen) return null
 
-  const images = product.images.length > 0 ? product.images : []
-  const currentImage = images[selectedImageIndex]?.imageUrl || getDefaultImage(product) || "/placeholder.svg"
+  // Get images for current product
+  const images = currentProduct.images && currentProduct.images.length > 0 
+    ? currentProduct.images 
+    : currentProduct.defaultImageUrl 
+      ? [currentProduct.defaultImageUrl] 
+      : model.defaultImageUrl 
+        ? [model.defaultImageUrl] 
+        : []
+
+  const currentImage = images[selectedImageIndex] || "/placeholder.svg"
+
+  // Get available options for each attribute type
+  const getAttributeOptions = (type: string): string[] => {
+    return model.attributeOptions[type] || []
+  }
+
+  // Handle attribute selection
+  const handleAttributeSelect = (type: string, value: string) => {
+    setSelectedAttributes(prev => ({
+      ...prev,
+      [type]: value
+    }))
+  }
+
+  // Check if an option is available (has stock)
+  const isOptionAvailable = (type: string, value: string): boolean => {
+    // Find products with this attribute value
+    const productsWithOption = model.products.filter(p => 
+      p.attributes.some(attr => attr.type === type && attr.value === value)
+    )
+    
+    // Check if any of those products are in stock
+    return productsWithOption.some(p => p.stockQuantity > 0)
+  }
+
+  // Check if an option is currently selected
+  const isOptionSelected = (type: string, value: string): boolean => {
+    return selectedAttributes[type] === value
+  }
 
   const handleAddToCart = () => {
     addToCart({
-      productId: product.id,
+      productId: currentProduct.id,
       quantity,
-      price: product.price,
-      name: getProductName(product),
+      price: currentProduct.price,
+      name: `${model.brandName} ${model.name}`,
       image: currentImage,
+      attributes: currentProduct.attributes,
+      sku: currentProduct.sku
     })
     setAddedToCart(true)
     onCartUpdate?.()
@@ -42,6 +157,11 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
       setAddedToCart(false)
     }, 2000)
   }
+
+  const productName = `${model.brandName} ${model.name}`
+  const attributeText = currentProduct.attributes
+    .map(attr => `${attr.type}: ${attr.value}`)
+    .join(", ")
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -53,7 +173,7 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
 
       <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col md:flex-row border border-border">
         <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-border bg-card md:hidden sticky top-0 z-10">
-          <h2 className="text-base font-semibold truncate flex-1">{getProductName(product)}</h2>
+          <h2 className="text-base font-semibold truncate flex-1">{productName}</h2>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 flex-shrink-0 hover:bg-secondary">
             <X className="h-4 w-4" />
           </Button>
@@ -66,11 +186,11 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
             <div className="relative w-full bg-gradient-to-br from-secondary to-secondary/50 rounded-xl overflow-hidden flex items-center justify-center min-h-96 border border-border/50 shadow-sm">
               <img
                 src={currentImage || "/placeholder.svg"}
-                alt={getProductName(product)}
+                alt={productName}
                 className="w-full h-full object-contain p-4"
               />
 
-              {product.stockQuantity === 0 && (
+              {currentProduct.stockQuantity === 0 && (
                 <div className="absolute top-4 right-4 bg-destructive text-white px-3 py-1 rounded-full text-xs font-semibold">
                   Out of Stock
                 </div>
@@ -91,7 +211,7 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
                     title={`View image ${index + 1}`}
                   >
                     <img
-                      src={img.imageUrl || "/placeholder.svg"}
+                      src={img || "/placeholder.svg"}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -103,7 +223,7 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
             <div className="space-y-2 pt-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Truck className="h-4 w-4 text-accent" />
-                <span>Free Shipping on Orders Over $50</span>
+                <span>Free Shipping on Orders Over Rs. 5000</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <RotateCcw className="h-4 w-4 text-accent" />
@@ -121,8 +241,9 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
             <div className="hidden md:block space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground font-medium mb-1">{getBrandName(product)}</p>
-                  <h1 className="text-2xl font-bold text-foreground">{getProductName(product)}</h1>
+                  <p className="text-sm text-muted-foreground font-medium mb-1">{model.brandName}</p>
+                  <h1 className="text-2xl font-bold text-foreground">{productName}</h1>
+                  <p className="text-sm text-muted-foreground mt-1">SKU: {currentProduct.sku}</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -146,16 +267,19 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
 
             <div className="space-y-3 pb-6 border-b border-border">
               <div className="flex items-baseline gap-3">
-                <p className="text-4xl font-bold text-primary">${product.price.toFixed(2)}</p>
-                <p className="text-lg text-muted-foreground line-through">${(product.price * 1.2).toFixed(2)}</p>
-                <Badge className="bg-destructive/10 text-destructive border-destructive/20">-17%</Badge>
+                <p className="text-4xl font-bold text-primary">Rs. {currentProduct.price.toLocaleString()}</p>
+                {model.minPrice !== model.maxPrice && (
+                  <p className="text-sm text-muted-foreground">
+                    (Price range: Rs. {model.minPrice.toLocaleString()} - Rs. {model.maxPrice.toLocaleString()})
+                  </p>
+                )}
               </div>
 
-              {product.stockQuantity > 0 ? (
+              {currentProduct.stockQuantity > 0 ? (
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-status-success"></div>
                   <span className="text-sm font-medium text-status-success">
-                    In Stock ({product.stockQuantity} available)
+                    In Stock ({currentProduct.stockQuantity} available)
                   </span>
                 </div>
               ) : (
@@ -166,45 +290,39 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
               )}
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Key Features</h3>
-              <div className="space-y-2 text-sm">
-                <p className="text-foreground">{getAttributeValuesText(product)}</p>
-                <p className="text-muted-foreground">Premium quality with professional-grade specifications.</p>
-              </div>
-            </div>
-
-            {product.stockQuantity > 0 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">Color</label>
-                    <select
-                      value={selectedColor}
-                      onChange={(e) => setSelectedColor(e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="Red">Red</option>
-                      <option value="Blue">Blue</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">Storage</label>
-                    <select
-                      value={selectedStorage}
-                      onChange={(e) => setSelectedStorage(e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="128GB">128GB</option>
-                      <option value="256GB">256GB</option>
-                    </select>
+            {/* Attribute Selection */}
+            <div className="space-y-4">
+              {Object.entries(model.attributeOptions).map(([type, values]) => (
+                <div key={type} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">{type}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {values.map((value) => {
+                      const isSelected = isOptionSelected(type, value)
+                      const isAvailable = isOptionAvailable(type, value)
+                      
+                      return (
+                        <Button
+                          key={value}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => isAvailable && handleAttributeSelect(type, value)}
+                          className={`flex items-center gap-1 ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={!isAvailable}
+                        >
+                          {value}
+                          {!isAvailable && (
+                            <span className="text-xs ml-1">(Out of stock)</span>
+                          )}
+                        </Button>
+                      )
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
 
-            {product.stockQuantity > 0 && (
+            {currentProduct.stockQuantity > 0 && (
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-foreground">Quantity</label>
                 <div className="flex items-center gap-3 bg-secondary/30 border border-border rounded-lg p-3 w-fit">
@@ -219,18 +337,18 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
                   <Input
                     type="number"
                     min="1"
-                    max={product.stockQuantity}
+                    max={currentProduct.stockQuantity}
                     value={quantity}
                     onChange={(e) => {
-                      const value = Number.parseInt(e.target.value) || 1
-                      setQuantity(Math.max(1, Math.min(value, product.stockQuantity)))
+                      const value = Number(e.target.value) || 1
+                      setQuantity(Math.max(1, Math.min(value, currentProduct.stockQuantity)))
                     }}
                     className="w-16 text-center border-0 bg-transparent text-sm font-medium"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setQuantity(Math.min(product.stockQuantity, quantity + 1))}
+                    onClick={() => setQuantity(Math.min(currentProduct.stockQuantity, quantity + 1))}
                     className="h-8 w-8 p-0 hover:bg-secondary"
                   >
                     <Plus className="h-4 w-4" />
@@ -239,10 +357,41 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
               </div>
             )}
 
+            {/* Selected Configuration Summary */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-2">Selected Configuration</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="font-medium">{productName}</span>
+                </div>
+                {Object.entries(selectedAttributes).map(([type, value]) => (
+                  <div key={type} className="flex justify-between">
+                    <span className="text-muted-foreground">{type}:</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Price:</span>
+                  <span className="font-medium text-primary">Rs. {currentProduct.price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SKU:</span>
+                  <span className="font-medium">{currentProduct.sku}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stock:</span>
+                  <span className={`font-medium ${currentProduct.stockQuantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentProduct.stockQuantity > 0 ? `${currentProduct.stockQuantity} units` : 'Out of stock'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-3 pt-4 mt-auto">
               <Button
                 className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:shadow-lg transition-all text-base font-semibold rounded-lg"
-                disabled={product.stockQuantity === 0}
+                disabled={currentProduct.stockQuantity === 0}
                 onClick={handleAddToCart}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
@@ -261,7 +410,7 @@ export function ProductDetailsModal({ isOpen, onClose, product, onCartUpdate }: 
             <div className="pt-6 border-t border-border space-y-3">
               <h3 className="font-semibold text-sm text-foreground">About This Product</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Premium {getProductName(product)} featuring {getAttributeValuesText(product)}. Designed for
+                Premium {productName} featuring {attributeText}. Designed for
                 professionals and enthusiasts alike, this product delivers exceptional performance and reliability.
               </p>
             </div>
