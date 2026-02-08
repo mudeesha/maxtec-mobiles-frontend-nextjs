@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -11,14 +10,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Breadcrumb } from "@/components/common/breadcrumb"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { CheckCircle2 } from "lucide-react"
-import { getCart, clearCart } from "@/lib/cart-store"
+import { CheckCircle2, Loader2, ShoppingCart } from "lucide-react"
+import { fetchUserCart, createOrder, createTransaction } from "@/lib/checkout-service"
 
 export default function CheckoutPage() {
   const router = useRouter()
   const [step, setStep] = useState<"address" | "payment" | "review" | "success">("address")
   const [cart, setCart] = useState({ items: [], total: 0 })
-  const [isClient, setIsClient] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isFetchingCart, setIsFetchingCart] = useState(true)
+  const [orderDetails, setOrderDetails] = useState<any>(null)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -29,18 +30,30 @@ export default function CheckoutPage() {
     city: "",
     state: "",
     zip: "",
-    country: "",
-    paymentMethod: "credit-card",
+    country: "Sri Lanka",
+    phone: "",
+    paymentMethod: "1",
   })
 
-  // Initialize client-side data
+  // Fetch cart data on component mount
   useEffect(() => {
-    setIsClient(true)
-    setCart(getCart())
-    setFormData(prev => ({
-      ...prev,
-      email: localStorage.getItem("userEmail") || ""
-    }))
+    const loadCartData = async () => {
+      try {
+        setIsFetchingCart(true)
+        const cartData = await fetchUserCart()
+        setCart(cartData)
+        
+        // Pre-fill email if available
+        const userEmail = localStorage.getItem("userEmail") || ""
+        setFormData(prev => ({ ...prev, email: userEmail }))
+      } catch (error) {
+        console.error("Failed to load cart:", error)
+      } finally {
+        setIsFetchingCart(false)
+      }
+    }
+
+    loadCartData()
   }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -48,18 +61,52 @@ export default function CheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleNext = () => {
+  const handlePlaceOrder = async () => {
+    setIsLoading(true)
+    
+    try {
+      const orderData = {
+        shippingAddress: {
+          fullName: `${formData.firstName} ${formData.lastName}`,
+          addressLine1: formData.address,
+          addressLine2: "",
+          city: formData.city,
+          state: formData.state || "",
+          zipCode: formData.zip || "",
+          country: formData.country,
+          phone: formData.phone,
+          email: formData.email || "",
+        },
+        paymentMethod: parseInt(formData.paymentMethod),
+        customerNotes: "",
+      }
+
+      console.log("Creating order:", orderData)
+      
+      const orderResult = await createOrder(orderData)
+      setOrderDetails(orderResult)
+      
+      setStep("success")
+      
+    } catch (err: any) {
+      alert("Error: " + (err.message || "Failed to create order"))
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleNext = async () => {
     if (step === "address") {
+      if (!formData.firstName || !formData.lastName || !formData.address || !formData.city || !formData.country || !formData.phone) {
+        alert("Please fill all required fields (First Name, Last Name, Address, City, Country, Phone)")
+        return
+      }
       setStep("payment")
     } else if (step === "payment") {
       setStep("review")
     } else if (step === "review") {
-      // Create order
-      setStep("success")
-      // Simulate order creation
-      setTimeout(() => {
-        clearCart()
-      }, 500)
+      await handlePlaceOrder()
     }
   }
 
@@ -68,16 +115,37 @@ export default function CheckoutPage() {
     else if (step === "review") setStep("payment")
   }
 
-  const total = cart.total + cart.total * 0.1
+  const shipping = 750;
 
-  // Show loading state during SSR
-  if (!isClient) {
+  const total = cart.total + shipping
+
+  // Show loading while fetching cart
+  if (isFetchingCart) {
     return (
       <DashboardLayout requiredRoles={["customer"]}>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-            <p>Preparing your checkout</p>
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-4">Loading your cart...</h1>
+            <p>Fetching your items from the server</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  // Show empty cart message
+  if (!isFetchingCart && cart.items.length === 0) {
+    return (
+      <DashboardLayout requiredRoles={["customer"]}>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <ShoppingCart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-4">Your cart is empty</h1>
+            <p className="text-muted-foreground mb-6">Add some products to your cart first</p>
+            <Button onClick={() => router.push("/products")}>
+              Browse Products
+            </Button>
           </div>
         </div>
       </DashboardLayout>
@@ -92,14 +160,17 @@ export default function CheckoutPage() {
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h1 className="text-3xl font-bold mb-2">Order Placed Successfully!</h1>
             <p className="text-muted-foreground mb-8">
-              Thank you for your order. You'll receive a confirmation email shortly.
+              Order #{orderDetails?.orderNumber || "000000"} has been confirmed.
             </p>
             <div className="bg-card p-6 rounded-lg mb-8">
-              <p className="text-2xl font-bold text-primary mb-2">Order Total: ${total.toFixed(2)}</p>
-              <p className="text-muted-foreground">Items: {cart.items.length}</p>
+              <p className="text-2xl font-bold text-primary mb-2">
+                Total: LKR {(orderDetails?.totalAmount || total).toLocaleString()}
+              </p>
+              <p className="text-muted-foreground">Payment: Cash on Delivery</p>
+              <p className="text-muted-foreground">Status: Pending</p>
             </div>
             <Button onClick={() => router.push("/customer/orders")} className="mr-4">
-              View Order
+              View Orders
             </Button>
             <Button onClick={() => router.push("/products")} variant="outline">
               Continue Shopping
@@ -194,7 +265,7 @@ export default function CheckoutPage() {
                         name="city"
                         value={formData.city}
                         onChange={handleInputChange}
-                        placeholder="New York"
+                        placeholder="Colombo"
                       />
                     </div>
                     <div>
@@ -204,7 +275,7 @@ export default function CheckoutPage() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        placeholder="NY"
+                        placeholder="Western"
                       />
                     </div>
                   </div>
@@ -226,9 +297,19 @@ export default function CheckoutPage() {
                         name="country"
                         value={formData.country}
                         onChange={handleInputChange}
-                        placeholder="United States"
+                        placeholder="Sri Lanka"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="0771234567"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -246,28 +327,16 @@ export default function CheckoutPage() {
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, paymentMethod: value }))}
                   >
                     <div className="flex items-center space-x-2 p-3 border border-border rounded-lg cursor-pointer hover:bg-secondary/50">
-                      <RadioGroupItem value="credit-card" id="credit-card" />
-                      <Label htmlFor="credit-card" className="cursor-pointer flex-1">
-                        Credit Card
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 border border-border rounded-lg cursor-pointer hover:bg-secondary/50">
-                      <RadioGroupItem value="debit-card" id="debit-card" />
-                      <Label htmlFor="debit-card" className="cursor-pointer flex-1">
-                        Debit Card
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 border border-border rounded-lg cursor-pointer hover:bg-secondary/50">
-                      <RadioGroupItem value="paypal" id="paypal" />
-                      <Label htmlFor="paypal" className="cursor-pointer flex-1">
-                        PayPal
+                      <RadioGroupItem value="1" id="cash-on-delivery" />
+                      <Label htmlFor="cash-on-delivery" className="cursor-pointer flex-1">
+                        Cash on Delivery
                       </Label>
                     </div>
                   </RadioGroup>
 
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                    <p className="font-semibold mb-1">Demo Mode</p>
-                    <p>This is a placeholder payment form. In production, integrate with your payment gateway.</p>
+                    <p className="font-semibold mb-1">Cash on Delivery</p>
+                    <p>Pay with cash when your order is delivered. You'll receive a transaction receipt.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -291,11 +360,13 @@ export default function CheckoutPage() {
                         {formData.city}, {formData.state} {formData.zip}
                         <br />
                         {formData.country}
+                        <br />
+                        Phone: {formData.phone}
                       </p>
                     </div>
                     <div className="border-t pt-4">
                       <h3 className="font-semibold mb-2">Payment Method</h3>
-                      <p className="text-muted-foreground capitalize">{formData.paymentMethod.replace("-", " ")}</p>
+                      <p className="text-muted-foreground">Cash on Delivery</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -306,12 +377,12 @@ export default function CheckoutPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {cart.items.map((item) => (
+                      {cart.items.map((item: any) => (
                         <div key={item.productId} className="flex justify-between text-sm">
                           <span>
                             {item.name} x{item.quantity}
                           </span>
-                          <span className="font-semibold">${(item.price * item.quantity).toFixed(2)}</span>
+                          <span className="font-semibold">LKR {(item.price * item.quantity).toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
@@ -322,11 +393,20 @@ export default function CheckoutPage() {
 
             {/* Navigation */}
             <div className="flex gap-4 mt-8">
-              <Button onClick={handleBack} variant="outline" disabled={step === "address"}>
+              <Button onClick={handleBack} variant="outline" disabled={step === "address" || isLoading}>
                 Back
               </Button>
-              <Button onClick={handleNext} className="flex-1">
-                {step === "review" ? "Place Order" : "Next"}
+              <Button onClick={handleNext} className="flex-1" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : step === "review" ? (
+                  "Place Order"
+                ) : (
+                  "Next"
+                )}
               </Button>
             </div>
           </div>
@@ -339,27 +419,29 @@ export default function CheckoutPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {cart.items.map((item) => (
+                  {cart.items.map((item: any) => (
                     <div key={item.productId} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {item.name} x{item.quantity}
+                        {item.productName || item.name} x{item.quantity}
                       </span>
-                      <span className="font-semibold">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-semibold">
+                        LKR {((item.price || 0) * item.quantity).toLocaleString()}
+                      </span>
                     </div>
                   ))}
                 </div>
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${cart.total.toFixed(2)}</span>
+                    <span>LKR {cart.total.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tax (10%)</span>
-                    <span>${(cart.total * 0.1).toFixed(2)}</span>
+                    <span className="text-muted-foreground">Shipping</span>
+                    <span>LKR {shipping.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between font-bold border-t pt-2">
                     <span>Total</span>
-                    <span className="text-primary">${total.toFixed(2)}</span>
+                    <span className="text-primary">LKR {total.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
