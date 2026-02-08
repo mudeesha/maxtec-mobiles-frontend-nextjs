@@ -4,64 +4,31 @@ import { useState, useEffect, useMemo } from "react"
 import { Search, ChevronLeft, ChevronRight, Filter, X, Sliders } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { ProductDetailsModal } from "@/components/products/product-details-modal"
-import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Skeleton } from "@/components/ui/skeleton"
-
-// Define interfaces based on your API response
-interface AttributeValueDto {
-  id: number
-  type: string
-  value: string
-}
-
-interface ProductVariantDto {
-  id: number
-  sku: string
-  attributes: AttributeValueDto[]
-  stockQuantity: number
-  price: number
-  defaultImageUrl: string | null
-  images: string[]
-}
-
-interface ModelListingDto {
-  id: number
-  name: string
-  brandId: number
-  brandName: string
-  defaultImageUrl: string | null
-  minPrice: number
-  maxPrice: number
-  totalStock: number
-  hasStock: boolean
-  attributeOptions: Record<string, string[]>
-  products: ProductVariantDto[]
-}
-
-interface Brand {
-  id: number
-  name: string
-}
-
-const ITEMS_PER_PAGE = 12
+import { ProductCard } from "@/components/products/product-card"
+import { 
+  productService, 
+  type ModelListingDto, 
+  type ProductVariantDto, 
+  type Brand 
+} from "@/services/productService"
+import { ITEMS_PER_PAGE, filterDefaults } from "@/constants/productConstants"
 
 export default function ProductsPage() {
-  // State for API data
   const [models, setModels] = useState<ModelListingDto[]>([])
   const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filtering state
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedBrand, setSelectedBrand] = useState<number | null>(null)
-  const [minPrice, setMinPrice] = useState(0)
-  const [maxPrice, setMaxPrice] = useState(150000)
-  const [sortBy, setSortBy] = useState("featured")
+  const [searchQuery, setSearchQuery] = useState(filterDefaults.searchQuery)
+  const [selectedBrand, setSelectedBrand] = useState<number | null>(filterDefaults.selectedBrand)
+  const [minPrice, setMinPrice] = useState(filterDefaults.minPrice)
+  const [maxPrice, setMaxPrice] = useState(filterDefaults.maxPrice)
+  const [sortBy, setSortBy] = useState<"featured" | "price-low" | "price-high" | "name">(filterDefaults.sortBy)
   const [selectedProduct, setSelectedProduct] = useState<ProductVariantDto | null>(null)
   const [selectedModel, setSelectedModel] = useState<ModelListingDto | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -69,42 +36,19 @@ export default function ProductsPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [cartRefresh, setCartRefresh] = useState(0)
 
-  // Fetch models from API
   const fetchModels = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await fetch("https://localhost:44306/api/CustomerModels/listing")
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status}`)
-      }
-
-      const data: ModelListingDto[] = await response.json()
+      const data = await productService.fetchModels()
       setModels(data)
-      
-      // Extract unique brands from models
-      const uniqueBrands: Brand[] = []
-      const brandMap = new Map<number, string>()
-      
-      data.forEach(model => {
-        if (!brandMap.has(model.brandId)) {
-          brandMap.set(model.brandId, model.brandName)
-          uniqueBrands.push({
-            id: model.brandId,
-            name: model.brandName
-          })
-        }
-      })
-      
+
+      const uniqueBrands = productService.extractBrandsFromModels(data)
       setBrands(uniqueBrands)
       
-      // Set max price dynamically based on data
-      if (data.length > 0) {
-        const maxPriceInData = Math.max(...data.map(model => model.maxPrice))
-        setMaxPrice(Math.ceil(maxPriceInData * 1.1)) // Add 10% margin
-      }
+      const calculatedMaxPrice = productService.calculateMaxPrice(data)
+      setMaxPrice(calculatedMaxPrice)
     } catch (err) {
       console.error("Error fetching models:", err)
       setError(err instanceof Error ? err.message : "Failed to load products")
@@ -113,63 +57,24 @@ export default function ProductsPage() {
     }
   }
 
-  // Filter models
   const filteredModels = useMemo(() => {
-    return models.filter((model) => {
-      const modelName = model.name.toLowerCase()
-      const brandName = model.brandName.toLowerCase()
-      const matchesSearch =
-        !searchQuery || 
-        modelName.includes(searchQuery.toLowerCase()) || 
-        brandName.includes(searchQuery.toLowerCase())
-      
-      const matchesBrand = !selectedBrand || model.brandId === selectedBrand
-      const matchesPrice = model.minPrice >= minPrice && model.maxPrice <= maxPrice
-      
-      return matchesSearch && matchesBrand && matchesPrice
-    })
+    return productService.filterModels(models, searchQuery, selectedBrand, minPrice, maxPrice)
   }, [models, searchQuery, selectedBrand, minPrice, maxPrice])
 
-  // Sort models
   const sortedModels = useMemo(() => {
-    const filtered = [...filteredModels]
-    
-    if (sortBy === "price-low") {
-      filtered.sort((a, b) => a.minPrice - b.minPrice)
-    } else if (sortBy === "price-high") {
-      filtered.sort((a, b) => b.maxPrice - a.maxPrice)
-    } else if (sortBy === "name") {
-      filtered.sort((a, b) => a.name.localeCompare(b.name))
-    }
-    
-    return filtered
+    return productService.sortModels(filteredModels, sortBy)
   }, [filteredModels, sortBy])
 
-  // Pagination
-  const totalPages = Math.ceil(sortedModels.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const endIndex = startIndex + ITEMS_PER_PAGE
-  const paginatedModels = sortedModels.slice(startIndex, endIndex)
+  const totalPages = productService.calculateTotalPages(sortedModels, ITEMS_PER_PAGE)
+  const paginatedModels = productService.paginateModels(sortedModels, currentPage, ITEMS_PER_PAGE)
 
   const handlePageChange = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)))
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // Get default product for a model (lowest price or first in stock)
-  const getDefaultProduct = (model: ModelListingDto): ProductVariantDto | null => {
-    if (!model.products || model.products.length === 0) return null
-    
-    // Try to find first in-stock product
-    const inStockProduct = model.products.find(p => p.stockQuantity > 0)
-    if (inStockProduct) return inStockProduct
-    
-    // Otherwise return first product
-    return model.products[0]
-  }
-
   const handleModelClick = (model: ModelListingDto) => {
-    const defaultProduct = getDefaultProduct(model)
+    const defaultProduct = productService.getDefaultProduct(model)
     if (defaultProduct) {
       setSelectedModel(model)
       setSelectedProduct(defaultProduct)
@@ -182,14 +87,14 @@ export default function ProductsPage() {
   }
 
   const resetFilters = () => {
-    setSearchQuery("")
-    setSelectedBrand(null)
-    setMinPrice(0)
+    setSearchQuery(filterDefaults.searchQuery)
+    setSelectedBrand(filterDefaults.selectedBrand)
+    setMinPrice(filterDefaults.minPrice)
     if (models.length > 0) {
-      const maxPriceInData = Math.max(...models.map(m => m.maxPrice))
-      setMaxPrice(Math.ceil(maxPriceInData * 1.1))
+      const calculatedMaxPrice = productService.calculateMaxPrice(models)
+      setMaxPrice(calculatedMaxPrice)
     }
-    setSortBy("featured")
+    setSortBy(filterDefaults.sortBy)
     handleFilterChange()
   }
 
@@ -201,24 +106,12 @@ export default function ProductsPage() {
     fetchModels()
   }, [])
 
-  // Update max price when models change
   useEffect(() => {
     if (models.length > 0) {
-      const maxPriceInData = Math.max(...models.map(m => m.maxPrice))
-      setMaxPrice(Math.ceil(maxPriceInData * 1.1))
+      const calculatedMaxPrice = productService.calculateMaxPrice(models)
+      setMaxPrice(calculatedMaxPrice)
     }
   }, [models])
-
-  // Get attribute summary text
-  const getAttributeSummary = (model: ModelListingDto) => {
-    const summaries: string[] = []
-    
-    Object.entries(model.attributeOptions).forEach(([type, values]) => {
-      summaries.push(`${type}: ${values.join("/")}`)
-    })
-    
-    return summaries.join(" | ")
-  }
 
   if (loading) {
     return (
@@ -274,7 +167,6 @@ export default function ProductsPage() {
         </div>
       </section>
 
-      {/* Main Content */}
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
         <div className="mb-8">
           <div className="relative">
@@ -320,7 +212,7 @@ export default function ProductsPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => {
-                    setSortBy(e.target.value)
+                    setSortBy(e.target.value as typeof sortBy)
                     handleFilterChange()
                   }}
                   className="w-full px-3 py-2.5 border-2 border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all cursor-pointer"
@@ -433,7 +325,7 @@ export default function ProductsPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => {
-                    setSortBy(e.target.value)
+                    setSortBy(e.target.value as typeof sortBy)
                     handleFilterChange()
                   }}
                   className="w-full px-3 py-2 border-2 border-border rounded-lg text-sm bg-background text-foreground"
@@ -507,88 +399,13 @@ export default function ProductsPage() {
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-                  {paginatedModels.map((model) => {
-                    const defaultProduct = getDefaultProduct(model)
-                    const imageUrl = defaultProduct?.defaultImageUrl || 
-                                    model.defaultImageUrl || 
-                                    "/placeholder.svg"
-                    
-                    return (
-                      <Card
-                        key={model.id}
-                        className="hover:shadow-xl transition-all duration-300 hover:border-primary hover:-translate-y-1 cursor-pointer group border-2 rounded-xl overflow-hidden"
-                        onClick={() => handleModelClick(model)}
-                      >
-                        <CardContent className="pt-3 p-3">
-                          {/* Image container with overlay */}
-                          <div className="aspect-square bg-gradient-to-br from-secondary to-secondary/50 rounded-lg mb-3 overflow-hidden flex items-center justify-center relative group">
-                            <img
-                              src={imageUrl}
-                              alt={`${model.brandName} ${model.name}`}
-                              className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-300"
-                            />
-                            {/* Quick view overlay badge */}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                              <span className="text-white font-semibold text-sm">View Details</span>
-                            </div>
-                          </div>
-
-                          {/* Model details */}
-                          <div className="space-y-2">
-                            <Badge variant="outline" className="text-xs mb-1">
-                              {model.brandName}
-                            </Badge>
-                            <h3 className="font-semibold text-sm mb-1 line-clamp-2 text-foreground">
-                              {model.name}
-                            </h3>
-                            <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
-                              {getAttributeSummary(model)}
-                            </p>
-
-                            {/* Stock badge */}
-                            {model.hasStock ? (
-                              <Badge className="bg-primary/10 text-primary border-primary/20 text-xs rounded-full">
-                                ✓ In Stock ({model.totalStock} units)
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs rounded-full">
-                                Out of Stock
-                              </Badge>
-                            )}
-                          </div>
-                        </CardContent>
-
-                        <CardFooter className="flex flex-col gap-2.5 py-3 px-3 border-t border-border bg-background/50">
-                          <div className="w-full">
-                            {model.minPrice === model.maxPrice ? (
-                              <p className="text-lg font-bold text-primary">
-                                Rs. {model.minPrice.toLocaleString()}
-                              </p>
-                            ) : (
-                              <>
-                                <p className="text-lg font-bold text-primary">
-                                  Rs. {model.minPrice.toLocaleString()}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Up to Rs. {model.maxPrice.toLocaleString()}
-                                </p>
-                              </>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {model.products.length} variants available
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-xs bg-transparent rounded-lg border-2 hover:bg-primary hover:text-white hover:border-primary transition-all font-semibold"
-                          >
-                            View All Variants
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    )
-                  })}
+                  {paginatedModels.map((model) => (
+                    <ProductCard
+                      key={model.id}
+                      model={model}
+                      onModelClick={handleModelClick}
+                    />
+                  ))}
                 </div>
 
                 {totalPages > 1 && (

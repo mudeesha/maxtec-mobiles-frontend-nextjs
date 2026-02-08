@@ -74,7 +74,7 @@ export default function ContactPage() {
                 <Mail className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
                 <div>
                   <h3 className="font-semibold mb-1 text-lg">Email</h3>
-                  <p className="text-sm text-muted-foreground">support@maxtecmobiles.com</p>
+                  <p className="text-sm text-muted-foreground">op.openterprises@gmail.com</p>
                   <p className="text-xs text-muted-foreground mt-1">Response within 24 hours</p>
                 </div>
               </div>

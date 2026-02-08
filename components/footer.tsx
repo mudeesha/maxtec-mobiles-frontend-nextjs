@@ -24,18 +24,18 @@ export function Footer() {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
                 <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-                <a href="mailto:support@maxtecmobiles.com">support@maxtecmobiles.com</a>
+                <a href="mailto:op.openterprises@gmail.com">op.openterprises@gmail.com</a>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
                 <Phone className="h-4 w-4 text-accent flex-shrink-0" />
-                <a href="tel:+1234567890">+1 (234) 567-8900</a>
+                <a href="tel:+1234567890">+94 77 898 1581</a>
               </div>
               <div className="flex items-start gap-2 text-muted-foreground">
                 <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                 <span>
-                  123 Commerce Street
+                  84/7 Kahawa Batapola Road, 
                   <br />
-                  New York, NY 10001
+                  Nindana, Ambalangoda, 80318
                 </span>
               </div>
             </div>
